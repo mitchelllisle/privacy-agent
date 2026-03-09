@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Service layer that orchestrates analysis and result aggregation."""
+
 from collections import Counter
 from typing import Any
 
@@ -8,12 +10,24 @@ from privacyagent.models import PiiMatch, PiiTypeCount, RunResult
 
 
 class PrivacyService:
+    """Use the analyzer to detect PII and build API response models."""
+
     def run(
         self,
         data: Any,
         threshold: float | None = None,
         return_matches: bool = True,
     ) -> RunResult:
+        """Run PII detection and aggregate output counts.
+
+        Args:
+            data: Arbitrary JSON-like payload to inspect.
+            threshold: Optional confidence cutoff applied to matches.
+            return_matches: Whether to include detailed match records.
+
+        Returns:
+            A `RunResult` containing counts and optional detailed matches.
+        """
         matches, fields_scanned = analyze_pii_with_agent(data)
 
         if threshold is not None:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""PII analysis helpers that flatten input data and query the BAML detector."""
+
 from collections.abc import Iterator
 from typing import Any
 
@@ -7,6 +9,15 @@ from privacyagent.models import PiiMatch
 
 
 def walk_values(data: Any, path: str = "$") -> Iterator[tuple[str, Any]]:
+    """Yield terminal values from nested dict/list structures.
+
+    Args:
+        data: Any JSON-like structure to traverse.
+        path: Current JSONPath-style prefix.
+
+    Yields:
+        Tuples of `(path, value)` for each terminal value.
+    """
     if isinstance(data, dict):
         for key, value in data.items():
             yield from walk_values(value, f"{path}.{key}")
@@ -21,6 +32,14 @@ def walk_values(data: Any, path: str = "$") -> Iterator[tuple[str, Any]]:
 
 
 def _build_detection_context(data: Any) -> tuple[str, int]:
+    """Build a single context string for model detection.
+
+    Args:
+        data: Input payload to flatten.
+
+    Returns:
+        A tuple of `(context_text, fields_scanned)`.
+    """
     lines: list[str] = []
     scanned = 0
 
@@ -35,6 +54,18 @@ def _build_detection_context(data: Any) -> tuple[str, int]:
 
 
 def _build_detection_chunks(data: Any, chunk_size: int = 60) -> tuple[list[str], int, dict[str, str]]:
+    """Build chunked context strings for large payloads.
+
+    Args:
+        data: Input payload to flatten.
+        chunk_size: Maximum number of flattened lines per model request.
+
+    Returns:
+        A tuple containing:
+        - list of context chunks
+        - number of fields scanned
+        - mapping of path to stringified value
+    """
     lines: list[str] = []
     scanned = 0
     values: dict[str, str] = {}
@@ -55,12 +86,30 @@ def _build_detection_chunks(data: Any, chunk_size: int = 60) -> tuple[list[str],
 
 
 def _item_get(item: Any, key: str) -> Any:
+    """Read a key from either dict-like or object-like items.
+
+    Args:
+        item: Source object or mapping.
+        key: Attribute or dictionary key to read.
+
+    Returns:
+        The resolved value, or `None` when missing.
+    """
     if isinstance(item, dict):
         return item.get(key)
     return getattr(item, key, None)
 
 
 def analyze_pii_with_agent(data: Any) -> tuple[list[PiiMatch], int]:
+    """Detect likely PII matches using the configured BAML agent.
+
+    Args:
+        data: Arbitrary JSON-like input payload.
+
+    Returns:
+        A tuple of `(matches, fields_scanned)` where `matches` is de-duplicated
+        by path and normalized type list.
+    """
     chunks, fields_scanned, _values = _build_detection_chunks(data)
 
     if not chunks:

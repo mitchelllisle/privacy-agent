@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Local heuristic PII detection helpers used by tests and fallback logic."""
+
 import re
 
 EMAIL_RE = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[A-Za-z]{2,}\b")
@@ -9,10 +11,26 @@ IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
 
 def _digits_only(value: str) -> str:
+    """Strip non-digit characters from a string.
+
+    Args:
+        value: Raw input text.
+
+    Returns:
+        A string containing only numeric characters.
+    """
     return "".join(ch for ch in value if ch.isdigit())
 
 
 def _valid_ipv4(text: str) -> bool:
+    """Check whether text contains at least one valid IPv4 address.
+
+    Args:
+        text: Input text to scan.
+
+    Returns:
+        `True` when a valid IPv4 candidate is found, else `False`.
+    """
     for candidate in IPV4_RE.findall(text):
         octets = candidate.split(".")
         if all(int(octet) <= 255 for octet in octets):
@@ -21,6 +39,14 @@ def _valid_ipv4(text: str) -> bool:
 
 
 def _passes_luhn(number: str) -> bool:
+    """Validate a digit string using the Luhn checksum.
+
+    Args:
+        number: Card number digits only.
+
+    Returns:
+        `True` when checksum passes, else `False`.
+    """
     total = 0
     reverse_digits = number[::-1]
     for index, char in enumerate(reverse_digits):
@@ -34,6 +60,14 @@ def _passes_luhn(number: str) -> bool:
 
 
 def _contains_credit_card(text: str) -> bool:
+    """Detect plausible credit card numbers in text.
+
+    Args:
+        text: Input text to scan.
+
+    Returns:
+        `True` when at least one candidate passes length and Luhn checks.
+    """
     candidates = re.findall(r"(?:\d[ -]?){13,19}", text)
     for candidate in candidates:
         digits = _digits_only(candidate)
@@ -43,6 +77,14 @@ def _contains_credit_card(text: str) -> bool:
 
 
 def _contains_phone(text: str) -> bool:
+    """Detect plausible phone numbers in text.
+
+    Args:
+        text: Input text to scan.
+
+    Returns:
+        `True` when at least one candidate has a realistic digit count.
+    """
     candidates = re.findall(r"\+?[\d(). -]{10,}", text)
     for candidate in candidates:
         digits = _digits_only(candidate)
@@ -52,6 +94,14 @@ def _contains_phone(text: str) -> bool:
 
 
 def detect_pii_types(value: str) -> list[str]:
+    """Detect known PII types from a string using regex heuristics.
+
+    Args:
+        value: Text value to inspect.
+
+    Returns:
+        A list of detected type identifiers.
+    """
     if not value:
         return []
 
