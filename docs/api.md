@@ -1,4 +1,4 @@
-# API Reference :material-book-open-variant:
+# API Reference 📘
 
 Auto-generated from Python docstrings.
 
