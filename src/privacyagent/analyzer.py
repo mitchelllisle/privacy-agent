@@ -107,7 +107,7 @@ def analyze_pii_with_agent(data: Any) -> tuple[list[PiiMatch], int]:
             collected.append(
                 PiiMatch(
                     path=path,
-                    pii_types=normalized_types,
+                    types=normalized_types,
                     confidence=_item_get(item, "confidence"),
                     reason=str(_item_get(item, "reason") or ""),
                 )

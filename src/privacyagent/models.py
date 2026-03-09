@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
-
-ClassificationLevel = Literal["private", "confidential", "highly-confidential"]
-
 
 class RunConfig(BaseModel):
     threshold: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -19,21 +16,18 @@ class RunRequest(BaseModel):
 
 class PiiMatch(BaseModel):
     path: str
-    pii_types: list[str]
-    classification: ClassificationLevel = "confidential"
+    types: list[str]
     confidence: float | None = None
     reason: str = ""
 
 
 class PiiTypeCount(BaseModel):
     type: str
-    classification: ClassificationLevel
     count: int
 
 
 class RunResult(BaseModel):
     fields_scanned: int
-    pii_values: int
-    classification: ClassificationLevel
+    fields_matched: int
     types: list[PiiTypeCount]
     matches: list[PiiMatch] | None = None

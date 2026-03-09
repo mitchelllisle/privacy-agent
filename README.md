@@ -1,6 +1,6 @@
 # Privacy Agent
 
-Privacy classification service that accepts a REST POST payload and returns which values appear to contain PII.
+PII detection service that accepts a REST POST payload and returns which values appear to contain PII.
 
 ## Current behavior
 
@@ -29,7 +29,9 @@ To generate/update the BAML Python client locally:
 uv run baml-cli generate
 ```
 
-Example request:
+## Request/response examples
+
+### 1) Basic detection
 
 ```bash
 curl -X POST http://localhost:8080/run \
@@ -42,6 +44,119 @@ curl -X POST http://localhost:8080/run \
     }
   }'
 ```
+
+Example response:
+
+```json
+{
+  "fields_scanned": 3,
+  "fields_matched": 3,
+  "types": [
+    {"type": "credit_card", "count": 1},
+    {"type": "email", "count": 1},
+    {"type": "phone_number", "count": 1}
+  ],
+  "matches": [
+    {
+      "path": "$.email",
+      "types": ["email"],
+      "confidence": 0.98,
+      "reason": "Matches a standard email pattern and key semantics."
+    },
+    {
+      "path": "$.phone",
+      "types": ["phone_number"],
+      "confidence": 0.97,
+      "reason": "Matches phone pattern with supporting key name."
+    },
+    {
+      "path": "$.notes",
+      "types": ["credit_card"],
+      "confidence": 0.92,
+      "reason": "Contains a credit card-like sequence."
+    }
+  ]
+}
+```
+
+### 2) Field-name context (column name awareness)
+
+The detector evaluates both value patterns and field-path semantics. In this payload, `email` is likely PII, while address-like fields under `residential`, `mailing`, and `office` may have lower confidence or no match depending on policy and context.
+
+```json
+{
+  "data": {
+    "email": "hello@hello.com",
+    "residential": {
+      "street": "12 Fake Street",
+      "suburb": "Sydney"
+    },
+    "mailing": {
+      "street": "12 Fake Street",
+      "suburb": "Sydney"
+    },
+    "office": {
+      "street": "5 Pitt Street",
+      "suburb": "Sydney"
+    }
+  }
+}
+```
+
+Possible response:
+
+```json
+{
+  "fields_scanned": 7,
+  "fields_matched": 4,
+  "types": [
+    {
+      "type": "address",
+      "count": 3
+    },
+    {
+      "type": "email",
+      "count": 1
+    }
+  ],
+  "matches": [
+    {
+      "path": "$.email",
+      "types": [
+        "email"
+      ],
+      "confidence": 0.95,
+      "reason": "Valid email format with field name 'email' confirming type"
+    },
+    {
+      "path": "$.residential.street",
+      "types": [
+        "address"
+      ],
+      "confidence": 0.85,
+      "reason": "Street address format with 'residential.street' field path indicating home address"
+    },
+    {
+      "path": "$.mailing.street",
+      "types": [
+        "address"
+      ],
+      "confidence": 0.85,
+      "reason": "Street address format with 'mailing.street' field path indicating postal address"
+    },
+    {
+      "path": "$.office.street",
+      "types": [
+        "address"
+      ],
+      "confidence": 0.85,
+      "reason": "Street address format with 'office.street' field path indicating work address"
+    }
+  ]
+}
+```
+
+If your policy treats street/suburb values as sensitive, adjust prompts and confidence threshold accordingly.
 
 ## Cloud Run deploy
 

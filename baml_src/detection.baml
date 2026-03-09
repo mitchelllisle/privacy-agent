@@ -8,16 +8,6 @@ class PiiMatch {
   reason string?
 }
 
-class ClassifiedType {
-  type string
-  classification string
-}
-
-class ClassificationResult {
-  classification "private" | "confidential" | "highly-confidential"
-  types ClassifiedType[]
-}
-
 function DetectPIIWithContext(context: string, system_instructions: string) -> PiiMatch[] {
   client "anthropic/claude-sonnet-4-20250514"
   prompt #"
@@ -55,35 +45,6 @@ function DetectPIIWithContext(context: string, system_instructions: string) -> P
   "#
 }
 
-function ClassifyDetectedTypes(detected_types: string[], policy_context: string) -> ClassificationResult {
-  client "anthropic/claude-sonnet-4-20250514"
-  prompt #"
-    You are a data-classification agent.
-
-    Classify each detected type into one of exactly these labels:
-    - private
-    - confidential
-    - highly-confidential
-
-    Policy:
-    - private: internal-only values that are not sensitive and not PII.
-    - confidential: PII values such as name, date_of_birth, email, phone_number, ipv4_address.
-    - highly-confidential: highly sensitive identity values such as medicare_number, driver_license, passport_number, us_ssn, tax identifiers, or other government identity document numbers.
-
-    Requirements:
-    - Return one classified entry for every input type.
-    - Preserve the exact input type string in output `type`.
-    - Set top-level `classification` to the highest level present across all returned types.
-    - Use only the three allowed labels.
-
-    Additional policy context:
-    {{ policy_context }}
-
-    Input types:
-    {{ detected_types }}
-  "#
-}
-
 test sample_detection {
   functions [DetectPIIWithContext]
   args {
@@ -93,13 +54,5 @@ test sample_detection {
       $.city: Sydney
     "#
     system_instructions "Detect likely PII and avoid false positives."
-  }
-}
-
-test sample_classification {
-  functions [ClassifyDetectedTypes]
-  args {
-    detected_types ["email", "driver_license"]
-    policy_context "Apply strict classification policy."
   }
 }

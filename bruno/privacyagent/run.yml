@@ -4,8 +4,28 @@ info:
   seq: 2
 
 http:
-  method: GET
-  url: http://0.0.0.0:8080/health
+  method: POST
+  url: http://0.0.0.0:8080/run
+  body:
+    type: json
+    data: |-
+      {
+        "data": {
+          "email": "hello@hello.com",
+          "residential": {
+            "street": "12 Fake Street",
+            "suburb": "Sydney"
+          },
+          "mailing": {
+            "street": "12 Fake Street",
+            "suburb": "Sydney"
+          },
+          "office": {
+            "street": "5 Pitt Street",
+            "suburb": "Sydney"
+          }
+        }
+      }
   auth: inherit
 
 settings:
