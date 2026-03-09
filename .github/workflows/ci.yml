@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Validate BAML generation
+        env:
+          ANTHROPIC_API_KEY: test-anthropic-key
+        run: uv run baml-cli generate
+
+      - name: Run unit tests
+        env:
+          ANTHROPIC_API_KEY: test-anthropic-key
+        run: uv run pytest
