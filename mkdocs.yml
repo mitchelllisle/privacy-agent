@@ -1,5 +1,6 @@
 site_name: Privacy Agent
 site_description: PII detection service documentation
+site_url: https://mitchelllisle.github.io/privacy-agent/
 repo_url: https://github.com/mitchelllisle/privacy-agent
 repo_name: mitchelllisle/privacy-agent
 theme:
