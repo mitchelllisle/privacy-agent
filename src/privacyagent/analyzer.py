@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
-from privacyagent.models import PiiMatch
+from privacyagent.models import PiiMatch, ReviewedMatch
 
 
 def walk_values(data: Any, path: str = "$") -> Iterator[tuple[str, Any]]:
@@ -163,3 +163,62 @@ def analyze_pii_with_agent(data: Any) -> tuple[list[PiiMatch], int]:
             )
 
     return collected, fields_scanned
+
+
+def review_pii_detections(matches: list[PiiMatch], data: Any) -> list[ReviewedMatch]:
+    """Validate detected PII matches using the configured BAML reviewer.
+
+    Args:
+        matches: Detected PII matches to review.
+        data: Original input payload used to rebuild field context.
+
+    Returns:
+        A list of `ReviewedMatch` verdicts, one per detection submitted for review.
+    """
+    if not matches:
+        return []
+
+    from baml_client.sync_client import b  # type: ignore
+
+    detection_lines = [
+        f"{m.path} | {', '.join(m.types)} | {m.confidence if m.confidence is not None else 'N/A'} | {m.reason}"
+        for m in matches
+    ]
+    detections_str = "\n".join(detection_lines)
+
+    chunks, _fields_scanned, _values = _build_detection_chunks(data)
+    context_str = "\n".join(chunks)
+
+    response = b.ReviewPIIDetection(
+        detections=detections_str,
+        context=context_str,
+    )
+
+    if isinstance(response, list):
+        raw_reviews = response
+    elif hasattr(response, "matches"):
+        raw_reviews = getattr(response, "matches", [])
+    else:
+        raw_reviews = []
+
+    reviewed: list[ReviewedMatch] = []
+    for item in raw_reviews:
+        path = str(_item_get(item, "path") or "")
+        if not path:
+            continue
+
+        plural_types = _item_get(item, "types") or []
+        normalized_types = [str(t).strip() for t in plural_types if str(t).strip()]
+        is_valid = bool(_item_get(item, "is_valid"))
+
+        reviewed.append(
+            ReviewedMatch(
+                path=path,
+                types=normalized_types,
+                is_valid=is_valid,
+                confidence=_item_get(item, "confidence"),
+                reason=str(_item_get(item, "reason") or ""),
+            )
+        )
+
+    return reviewed

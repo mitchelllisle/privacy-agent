@@ -12,9 +12,11 @@ class RunConfig(BaseModel):
     Attributes:
         threshold: Minimum confidence required for a match to be returned.
         return_matches: Whether to include detailed match entries in response.
+        review: Whether to run the reviewer agent to validate detections.
     """
     threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     return_matches: bool = True
+    review: bool = False
 
 
 class RunRequest(BaseModel):
@@ -43,6 +45,23 @@ class PiiMatch(BaseModel):
     reason: str = ""
 
 
+class ReviewedMatch(BaseModel):
+    """Reviewer verdict for a single detected PII match.
+
+    Attributes:
+        path: JSONPath-like location of the original match.
+        types: PII types that were under review.
+        is_valid: Whether the reviewer considers the detection a true positive.
+        confidence: Reviewer's confidence in its verdict.
+        reason: Brief explanation for the verdict.
+    """
+    path: str
+    types: list[str]
+    is_valid: bool
+    confidence: float | None = None
+    reason: str = ""
+
+
 class PiiTypeCount(BaseModel):
     """Aggregate count for a detected PII type.
 
@@ -62,8 +81,10 @@ class RunResult(BaseModel):
         fields_matched: Number of fields returned as PII matches.
         types: Per-type aggregate match counts.
         matches: Optional detailed match records.
+        review: Optional reviewer verdicts for each detected match.
     """
     fields_scanned: int
     fields_matched: int
     types: list[PiiTypeCount]
     matches: list[PiiMatch] | None = None
+    review: list[ReviewedMatch] | None = None
