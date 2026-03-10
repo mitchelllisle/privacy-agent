@@ -40,10 +40,12 @@ def run(request: RunRequest) -> dict:
     try:
         threshold = request.config.threshold if request.config else None
         return_matches = request.config.return_matches if request.config else True
+        review = request.config.review if request.config else False
         result = service.run(
             request.data,
             threshold=threshold,
             return_matches=return_matches,
+            review=review,
         )
     except Exception as exc:
         # Surface the real upstream/model failure to callers in a structured way.

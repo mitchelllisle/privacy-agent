@@ -153,3 +153,87 @@ def test_run_endpoint_returns_502_with_real_error(monkeypatch) -> None:
     detail = response.json()["detail"]
     assert "ValueError" in detail
     assert "invalid x-api-key" in detail
+
+
+def test_run_endpoint_includes_review_when_configured(monkeypatch) -> None:
+    class Match:
+        def __init__(self, path: str, types: list[str], confidence: float, reason: str) -> None:
+            self.path = path
+            self.types = types
+            self.confidence = confidence
+            self.reason = reason
+
+    class ReviewResult:
+        def __init__(self, path: str, types: list[str], is_valid: bool, confidence: float, reason: str) -> None:
+            self.path = path
+            self.types = types
+            self.is_valid = is_valid
+            self.confidence = confidence
+            self.reason = reason
+
+    class FakeB:
+        @staticmethod
+        def DetectPIIWithContext(context: str, system_instructions: str):
+            return [
+                Match("$.email", ["email"], 0.97, "Strong signal"),
+            ]
+
+        @staticmethod
+        def ReviewPIIDetection(detections: str, context: str):
+            return [
+                ReviewResult("$.email", ["email"], True, 0.98, "Confirmed email."),
+            ]
+
+    fake_sync = types.SimpleNamespace(b=FakeB())
+    fake_pkg = types.ModuleType("baml_client")
+    monkeypatch.setitem(sys.modules, "baml_client", fake_pkg)
+    monkeypatch.setitem(sys.modules, "baml_client.sync_client", fake_sync)
+
+    client = TestClient(app)
+    response = client.post(
+        "/run",
+        json={
+            "data": {"email": "alice@example.com"},
+            "config": {"review": True},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["fields_matched"] == 1
+    assert "review" in payload
+    assert len(payload["review"]) == 1
+    review_item = payload["review"][0]
+    assert review_item["path"] == "$.email"
+    assert review_item["is_valid"] is True
+    assert "types" in review_item
+
+
+def test_run_endpoint_omits_review_by_default(monkeypatch) -> None:
+    class Match:
+        def __init__(self, path: str, types: list[str], confidence: float, reason: str) -> None:
+            self.path = path
+            self.types = types
+            self.confidence = confidence
+            self.reason = reason
+
+    class FakeB:
+        @staticmethod
+        def DetectPIIWithContext(context: str, system_instructions: str):
+            return [Match("$.email", ["email"], 0.97, "Strong signal")]
+
+        @staticmethod
+        def ReviewPIIDetection(detections: str, context: str):
+            raise AssertionError("reviewer should not be called")
+
+    fake_sync = types.SimpleNamespace(b=FakeB())
+    fake_pkg = types.ModuleType("baml_client")
+    monkeypatch.setitem(sys.modules, "baml_client", fake_pkg)
+    monkeypatch.setitem(sys.modules, "baml_client.sync_client", fake_sync)
+
+    client = TestClient(app)
+    response = client.post("/run", json={"data": {"email": "alice@example.com"}})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "review" not in payload

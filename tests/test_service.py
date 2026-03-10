@@ -195,3 +195,89 @@ def test_service_applies_threshold_filter(monkeypatch) -> None:
 
     assert result.fields_matched == 1
     assert result.matches[0].path == "$.email"
+
+
+def test_service_runs_reviewer_when_requested(monkeypatch) -> None:
+    payload = {
+        "email": "agent@example.com",
+        "ip": "10.0.0.1",
+    }
+
+    class Match:
+        def __init__(self, path: str, types: list[str], confidence: float, reason: str) -> None:
+            self.path = path
+            self.types = types
+            self.confidence = confidence
+            self.reason = reason
+
+    class ReviewResult:
+        def __init__(self, path: str, types: list[str], is_valid: bool, confidence: float, reason: str) -> None:
+            self.path = path
+            self.types = types
+            self.is_valid = is_valid
+            self.confidence = confidence
+            self.reason = reason
+
+    class FakeB:
+        @staticmethod
+        def DetectPIIWithContext(context: str, system_instructions: str):
+            return [
+                Match("$.email", ["email"], 0.97, "Strong signal"),
+                Match("$.ip", ["ipv4_address"], 0.91, "Pattern and key match"),
+            ]
+
+        @staticmethod
+        def ReviewPIIDetection(detections: str, context: str):
+            assert "$.email" in detections
+            assert "$.ip" in detections
+            return [
+                ReviewResult("$.email", ["email"], True, 0.98, "Valid email address."),
+                ReviewResult("$.ip", ["ipv4_address"], True, 0.95, "Valid IPv4 address."),
+            ]
+
+    fake_sync = types.SimpleNamespace(b=FakeB())
+    fake_pkg = types.ModuleType("baml_client")
+
+    monkeypatch.setitem(sys.modules, "baml_client", fake_pkg)
+    monkeypatch.setitem(sys.modules, "baml_client.sync_client", fake_sync)
+
+    service = PrivacyService()
+    result = service.run(payload, review=True)
+
+    assert result.review is not None
+    assert len(result.review) == 2
+    reviewed_paths = {r.path for r in result.review}
+    assert "$.email" in reviewed_paths
+    assert "$.ip" in reviewed_paths
+    assert all(r.is_valid for r in result.review)
+
+
+def test_service_does_not_run_reviewer_by_default(monkeypatch) -> None:
+    payload = {"email": "agent@example.com"}
+
+    class Match:
+        def __init__(self, path: str, types: list[str], confidence: float, reason: str) -> None:
+            self.path = path
+            self.types = types
+            self.confidence = confidence
+            self.reason = reason
+
+    class FakeB:
+        @staticmethod
+        def DetectPIIWithContext(context: str, system_instructions: str):
+            return [Match("$.email", ["email"], 0.97, "Strong signal")]
+
+        @staticmethod
+        def ReviewPIIDetection(detections: str, context: str):
+            raise AssertionError("reviewer should not be called")
+
+    fake_sync = types.SimpleNamespace(b=FakeB())
+    fake_pkg = types.ModuleType("baml_client")
+
+    monkeypatch.setitem(sys.modules, "baml_client", fake_pkg)
+    monkeypatch.setitem(sys.modules, "baml_client.sync_client", fake_sync)
+
+    service = PrivacyService()
+    result = service.run(payload)
+
+    assert result.review is None
