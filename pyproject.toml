@@ -18,7 +18,7 @@ privacy-agent = "privacyagent.__main__:main"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "pytest>=8.4.2",
+    "pytest>=9.0.3",
 ]
 docs = [
     "mkdocs>=1.6.1",
